@@ -2,67 +2,50 @@ import json
 import os
 import time
 
-class AdvancedAssistant:
-    def __init__(self, name: str):
-        self.name = name
-        self.file_name = "history.json"
-        # Загружаем старую историю из файла при старте, если файл существует
+class AIStorage:
+    def __init__(self, filename: str = "history.json"):
+        self.filename = filename
+        # Загружаем старую историю при старте, если файл существует
         self.history = self.load_history_from_file()
 
-    # Меток для загрузки данных из файла
     def load_history_from_file(self):
-        if os.path.exists(self.file_name):
-            with open(self.file_name, "r", encoding="utf-8") as file:
-                # json.load превращает текст из файла обратно в список словарей Python
-                return json.load(file)
-        return [] # Если файла нет, возвращаем пустой список
+        """Загрузка истории из файла JSON"""
+        if os.path.exists(self.filename):
+            try:
+                with open(self.filename, "r", encoding="utf-8") as file:
+                    return json.load(file)
+            except Exception as e:
+                print(f"[Хранилище] Ошибка чтения файла истории: {e}")
+                return []
+        return []
 
-    def send_request(self, user_query: str):
-        print(f"\n[{self.name}] имитирует запрос к API...")
-        time.sleep(0.5)
-
-        # Имитируем реальный сложный ответ от ИИ-сервера (это СЛОВАРЬ)
-        raw_api_response = {
-            "status": "success",
-            "meta_data": {
-                "model_name": "GigaChat Pro-2026",
-                "tokens_used": 142
-            },
-            "choices": [
-                {
-                    "message": f"Ответ на тему '{user_query}' успешно сгенерирован."
-                }
-            ]
-        }
-
-        # Ваша задача: вытащить данные из сложной структуры словаря
-        ai_text = raw_api_response["choices"][0]["message"]
-        tokens = raw_api_response["meta_data"]["tokens_used"]
-
-        # Добавляем в историю
-        self.history.append({
+    def save_log(self, user_query: str, ai_response: str, tokens_used: int, model_name: str):
+        """Метод для добавления новой записи и сохранения её на жесткий диск"""
+        # Структурируем лог как в вашем исходном коде
+        log_entry = {
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "model_name": model_name,
             "query": user_query,
-            "response": ai_text,
-            "tokens": tokens
-        })
+            "response": ai_response,
+            "tokens_used": tokens_used
+        }
+        
+        # Добавляем в список памяти
+        self.history.append(log_entry)
+        
+        # Записываем обновленный список в файл
+        try:
+            with open(self.filename, "w", encoding="utf-8") as file:
+                json.dump(self.history, file, ensure_ascii=False, indent=4)
+            print("[Хранилище] Запись успешно сохранена в файл history.json!")
+        except Exception as e:
+            print(f"[Хранилище] Ошибка при сохранении файла: {e}")
 
-        # Сохраняем обновленную историю в файл
-        self.save_history_to_file()
-        return ai_text
-
-    # Метод для сохранения в файл
-    def save_history_to_file(self):
-        with open(self.file_name, "w", encoding="utf-8") as file:
-            # json.dump записывает список словарей в файл в красивом читаемом виде (indent=4)
-            json.dump(self.history, file, ensure_ascii=False, indent=4)
-        print("История успешно сохранена в файл history.json!")
-
-# --- ПРОВЕРКА ---
-if __name__ == "__main__":
-    bot = AdvancedAssistant("AI-Broker")
-    
-    # Сделайте тест: запустите программу несколько раз с разными вопросами!
-    user_input = input("Введите ваш вопрос для ИИ: ")
-    answer = bot.send_request(user_input)
-    print(f"ИИ ответил: {answer}")
+    def show_history(self):
+        """Вывод истории в консоль"""
+        print(f"\n--- История запросов (Всего записей: {len(self.history)}) ---")
+        if not self.history:
+            print("История пуста.")
+        for index, item in enumerate(self.history, 1):
+            short_resp = item['response'][:50].replace('\n', ' ') + "..."
+            print(f"{index}. [{item['timestamp']}] Вопрос: {item['query']} | Токены: {item['tokens_used']} | Ответ: {short_resp}")
