@@ -3,4 +3,7 @@ venv/
 __pycache__/
 desktop.ini
 save.bat
+build/
+dist/
+*.spec
 *.pyc
