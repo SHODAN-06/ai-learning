@@ -3,13 +3,12 @@ import os
 import time
 
 class AIStorage:
-    def __init__(self, filename: str = "history.json"):
+    def __init__(self, filename: str = "history.json", html_filename: str = "history.html"):
         self.filename = filename
-        # Загружаем старую историю при старте, если файл существует
+        self.html_filename = html_filename
         self.history = self.load_history_from_file()
 
     def load_history_from_file(self):
-        """Загрузка истории из файла JSON"""
         if os.path.exists(self.filename):
             try:
                 with open(self.filename, "r", encoding="utf-8") as file:
@@ -20,32 +19,95 @@ class AIStorage:
         return []
 
     def save_log(self, user_query: str, ai_response: str, tokens_used: int, model_name: str):
-        """Метод для добавления новой записи и сохранения её на жесткий диск"""
-        # Структурируем лог как в вашем исходном коде
+        # ФИШКА №1: Считаем стоимость запроса (1.2 руб за 1000 токенов для Ultra модели)
+        price_per_token = 1.2 / 1000
+        cost_rub = round(tokens_used * price_per_token, 4)
+
         log_entry = {
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
             "model_name": model_name,
             "query": user_query,
             "response": ai_response,
-            "tokens_used": tokens_used
+            "tokens_used": tokens_used,
+            "cost_rub": cost_rub  # Сохраняем стоимость
         }
         
-        # Добавляем в список памяти
         self.history.append(log_entry)
         
-        # Записываем обновленный список в файл
         try:
             with open(self.filename, "w", encoding="utf-8") as file:
                 json.dump(self.history, file, ensure_ascii=False, indent=4)
-            print("[Хранилище] Запись успешно сохранена в файл history.json!")
+            print(f"[Хранилище] Запись сохранена! Стоимость запроса: {cost_rub} руб.")
+            
+            # Автоматически обновляем красивую HTML страницу
+            self.generate_html_report()
+            
         except Exception as e:
             print(f"[Хранилище] Ошибка при сохранении файла: {e}")
 
+    def generate_html_report(self):
+        """ФИШКА №2: Генерация красивой веб-страницы с историей"""
+        html_content = """
+        <!DOCTYPE html>
+        <html lang="ru">
+        <head>
+            <meta charset="UTF-8">
+            <title>История запросов ИИ Ассистента</title>
+            <style>
+                body { font-family: 'Segoe UI', Arial, sans-serif; margin: 40px; background-color: #f5f7fb; color: #333; }
+                h2 { color: #1e3a8a; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+                th, td { padding: 15px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+                th { background-color: #2563eb; color: white; font-weight: 600; }
+                tr:hover { background-color: #f8fafc; }
+                .badge { background-color: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; font-weight: bold; }
+                .cost { color: #16a34a; font-weight: bold; }
+                pre { white-space: pre-wrap; font-family: inherit; margin: 0; }
+            </style>
+        </head>
+        <body>
+            <h2>📊 Панель мониторинга ИИ (Логи сессии)</h2>
+            <table>
+                <tr>
+                    <th>Время</th>
+                    <th>Модель</th>
+                    <th>Ваш запрос</th>
+                    <th>Ответ ИИ</th>
+                    <th>Токены</th>
+                    <th>Стоимость</th>
+                </tr>
+        """
+        
+        # Заполняем таблицу строками из нашей истории
+        for item in self.history:
+            cost = item.get('cost_rub', 0.0)
+            html_content += f"""
+                <tr>
+                    <td>{item.get('timestamp', '---')}</td>
+                    <td><span class="badge">{item.get('model_name', 'GigaChat')}</span></td>
+                    <td><b>{item.get('query', '---')}</b></td>
+                    <td><pre>{item.get('response', '---')}</pre></td>
+                    <td>{item.get('tokens_used', 0)}</td>
+                    <td><span class="cost">{cost} ₽</span></td>
+                </tr>
+            """
+            
+        html_content += """
+            </table>
+        </body>
+        </html>
+        """
+        
+        with open(self.html_filename, "w", encoding="utf-8") as file:
+            file.write(html_content)
+        print("[Хранилище] Красивый HTML-отчет обновлен!")
+
     def show_history(self):
-        """Вывод истории в консоль"""
         print(f"\n--- История запросов (Всего записей: {len(self.history)}) ---")
         if not self.history:
             print("История пуста.")
         for index, item in enumerate(self.history, 1):
-            short_resp = item['response'][:50].replace('\n', ' ') + "..."
-            print(f"{index}. [{item['timestamp']}] Вопрос: {item['query']} | Токены: {item['tokens_used']} | Ответ: {short_resp}")
+            short_resp = item['response'][:40].replace('\n', ' ') + "..."
+            tokens = item.get('tokens_used', 'не указано')
+            cost = item.get('cost_rub', '0.0')
+            print(f"{index}. [{item.get('timestamp', 'Ранее')}] Токены: {tokens} ({cost} ₽) | Ответ: {short_resp}")
