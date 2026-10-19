@@ -10,16 +10,25 @@ class AIAssistant:
         self.name = name
         self.model = model_version
         self.storage = AIStorage()
+        
+        # Список сообщений для удержания контекста диалога
+        self.context_memory = []
+        
         self.credentials = os.getenv("GIGACHAT_CREDENTIALS")
         if not self.credentials:
             raise ValueError("Ошибка: Токен GIGACHAT_CREDENTIALS не найден в файле .env!")
 
+    def clear_session_memory(self):
+        """Метод для очистки памяти текущего диалога"""
+        self.context_memory = []
+        print("[Система] Память текущей сессии успешно очищена.")
+
     def analyze_query(self, user_query: str):
-        """Служебный скрытый метод: ИИ анализирует категорию и тональность вопроса"""
+        """Фоновый метод анализа категории и тональности"""
         try:
             with GigaChat(credentials=self.credentials, verify_ssl_certs=False) as giga:
                 instruction = """
-                Проанализируй текст пользователя. Определи категорию вопроса (выбери ОДНО из: Биткойн/Финансы, ИТ-разработка, Бизнес-идея, Юмор, Бытовой вопрос) 
+                Проанализируй текст пользователя. Определи категорию вопроса (выбери ОДНО из: Финансы, ИТ-разработка, Бизнес-идея, Юмор, Бытовой вопрос) 
                 и тональность текста (выбери ОДНО из: Позитивный, Нейтральный, Раздраженный).
                 Ответь строго в формате: Категория | Тональность. Никаких других слов не пиши!
                 """
@@ -31,35 +40,50 @@ class AIAssistant:
                     ],
                     "temperature": 0.1
                 })
+                
+                # ТУТ ИСПРАВЛЕНО (Добавлен индекс [0]):
                 result = response.choices[0].message.content.strip()
-                # Разделяем ответ по черте '|'
+                
                 parts = result.split("|")
                 cat = parts[0].strip() if len(parts) > 0 else "Общее"
                 sent = parts[1].strip() if len(parts) > 1 else "Нейтральный"
                 return cat, sent
-        except Exception:
+        except Exception as e:
+            print(f"[Система] Ошибка фонового анализа: {e}")
             return "Общее", "Нейтральный"
 
     def send_request(self, user_query: str):
-        print(f"\n[{self.name}] отправляет запрос в реальную нейросеть {self.model}...")
+        print(f"\n[{self.name}] отправляет запрос в реальную нейросеть {self.model} с учетом контекста...")
         try:
             if not user_query.strip():
                 raise ValueError("Запрос не может быть пустым!")
             
-            # Шаг 1: Фоновая аналитика вопроса
+            # 1. Фоновый анализ
             category, sentiment = self.analyze_query(user_query)
             
-            # Шаг 2: Основной запрос ответа
+            # 2. Добавляем текущий вопрос пользователя в оперативную память контекста
+            self.context_memory.append({"role": "user", "content": user_query})
+            
+            # Ограничиваем память последними 10 репликами, чтобы не тратить лишние токены
+            if len(self.context_memory) > 10:
+                self.context_memory = self.context_memory[-10:]
+            
+            # 3. Отправляем ВСЮ историю беседы на сервер Сбера
             with GigaChat(credentials=self.credentials, verify_ssl_certs=False) as giga:
                 response = giga.chat({
                     "model": self.model,
-                    "messages": [{"role": "user", "content": user_query}],
+                    "messages": self.context_memory,
                     "temperature": 0.7
                 })
+                
+                # ТУТ ТОЖЕ ИСПРАВЛЕНО (Добавлен индекс [0]):
                 ai_response = response.choices[0].message.content
                 tokens_used = response.usage.total_tokens
             
-            # Сохраняем расширенные логи со служебными тегами
+            # 4. Добавляем ответ ИИ в память контекста
+            self.context_memory.append({"role": "assistant", "content": ai_response})
+            
+            # 5. Сохраняем в постоянные логи на жесткий диск
             self.storage.save_log(
                 user_query=user_query, 
                 ai_response=ai_response, 
@@ -74,9 +98,7 @@ class AIAssistant:
         except ValueError as error:
             return f"Ошибка валидации: {error}"
         except Exception as e:
+            # Если произошла ошибка, удаляем последний вопрос из памяти, чтобы не ломать цепочку
+            if self.context_memory and self.context_memory[-1]["role"] == "user":
+                self.context_memory.pop()
             return f"Произошла ошибка при обращении к API ИИ: {e}"
-
-if __name__ == "__main__":
-    # Для консольного теста
-    my_bot = AIAssistant(name="GigaAssistant")
-    my_bot.send_request("Придумай смешной анекдот про сисадмина")
