@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Генератор Стартапов на базе ИИ</title>
+    <style>
+        :root {
+            --bg-color: #f4f6fa;
+            --card-bg: #ffffff;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --success: #16a34a;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 700px;
+        }
+
+        h1 {
+            color: #1e3a8a;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .search-box {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+
+        input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            border-color: var(--primary);
+        }
+
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        button:disabled {
+            background-color: #cbd5e1;
+            cursor: not-allowed;
+        }
+
+        .card {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
+            display: none; /* Скрыта по умолчанию */
+        }
+
+        .loading {
+            text-align: center;
+            font-style: italic;
+            color: var(--text-muted);
+            display: none;
+            margin: 20px 0;
+        }
+
+        .badge {
+            background-color: #e0f2fe;
+            color: #0369a1;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+
+        .price {
+            color: var(--success);
+            font-size: 1.2em;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+
+        ul {
+            padding-left: 20px;
+            line-height: 1.6;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🚀 Московский ИИ-Генератор Стартапов</h1>
+    
+    <!-- Форма ввода темы -->
+    <div class="search-box">
+        <input type="text" id="topicInput" placeholder="Введите сферу бизнеса (например: Доставка цветов, Финтех)...">
+        <button id="genBtn" onclick="generateIdea()">Создать</button>
+    </div>
+
+    <!-- Анимация загрузки -->
+    <div id="loadingBlock" class="loading">🤖 Наш ИИ-Аналитик просчитывает бизнес-модель для Москвы, пожалуйста, подождите...</div>
+
+    <!-- Карточка с результатом от ИИ -->
+    <div id="resultCard" class="card">
+        <h2 id="resTitle" style="color: #1e3a8a; margin-top: 0;"></h2>
+        <p><span class="badge">Концепция</span></p>
+        <p id="resConcept" style="line-height: 1.6;"></p>
+        
+        <p><span class="badge">Целевая аудитория</span></p>
+        <p id="resAudience"></p>
+        
+        <p><span class="badge">Стартовый капитал</span></p>
+        <div id="resCapital" class="price"></div>
+        
+        <p><span class="badge">Монетизация</span></p>
+        <p id="resMonetization"></p>
+        
+        <p><span class="badge">Пошаговый план запуска</span></p>
+        <ul id="resSteps"></ul>
+    </div>
+</div>
+
+<script>
+    async function generateIdea() {
+        const topicInput = document.getElementById('topicInput');
+        const genBtn = document.getElementById('genBtn');
+        const loadingBlock = document.getElementById('loadingBlock');
+        const resultCard = document.getElementById('resultCard');
+        
+        const topic = topicInput.value.trim();
+        if (!topic) {
+            alert('Пожалуйста, введите тему стартапа!');
+            return;
+        }
+
+        // Блокируем интерфейс на время запроса
+        genBtn.disabled = true;
+        loadingBlock.style.display = 'block';
+        resultCard.style.display = 'none';
+
+        try {
+            // Делаем реальный сетевой запрос к вашему FastAPI серверу!
+            const response = await fetch(`/api/v1/generate-idea?topic=${encodeURIComponent(topic)}`);
+
+            
+            if (!response.ok) {
+                throw new Error('Ошибка сервера при генерации');
+            }
+
+            // Получаем чистый JSON-объект, который отвалидировал Pydantic
+            const data = await response.json();
+
+            // Динамически заполняем HTML-теги данными из базы/ИИ
+            document.getElementById('resTitle').innerText = data.title;
+            document.getElementById('resConcept').innerText = data.concept;
+            document.getElementById('resAudience').innerText = data.target_audience;
+            document.getElementById('resCapital').innerText = Number(data.start_capital_rub).toLocaleString('ru-RU') + ' ₽';
+            document.getElementById('resMonetization').innerText = data.monetization;
+
+            // Очищаем и заново заполняем список шагов
+            const stepsList = document.getElementById('resSteps');
+            stepsList.innerHTML = '';
+            data.steps.forEach(step => {
+                const li = document.createElement('li');
+                li.innerText = step;
+                stepsList.appendChild(li);
+            });
+
+            // Показываем карточку результата
+            resultCard.style.display = 'block';
+
+        } catch (error) {
+            alert('Произошла ошибка: ' + error.message + '\nУбедитесь, что ваш Python-сервер запущен!');
+        } finally {
+            // Возвращаем интерфейс в исходное состояние
+            genBtn.disabled = false;
+            loadingBlock.style.display = 'none';
+        }
+    }
+</script>
+
+</body>
+</html>
