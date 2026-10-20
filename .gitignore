@@ -6,5 +6,6 @@ save.bat
 build/
 dist/
 build.bat
+database.db
 *.spec
 *.pyc
